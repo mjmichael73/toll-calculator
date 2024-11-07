@@ -47,6 +47,7 @@ func (dr *DataReceiver) wsReceiveLoop() {
 			log.Println("read error: ", err)
 			continue
 		}
-		dr.msgch <- data
+		// TODO: Below code commented for now, because the channel gets full since no consumer is available yet
+		// dr.msgch <- data
 	}
 }
