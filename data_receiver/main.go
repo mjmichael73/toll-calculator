@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,14 +11,29 @@ import (
 	"github.com/mjmichael73/toll-calculator/types"
 )
 
-const kafkaTopic = "obudata"
+var kafkaTopic = "obudata"
 
 func main() {
+	recv, err := NewDataReceiver()
+	if err != nil {
+		log.Fatal(err)
+	}
+	http.HandleFunc("/ws", recv.handleWS)
+	http.ListenAndServe(":30000", nil)
+}
+
+type DataReceiver struct {
+	msgch chan types.OBUData
+	conn  *websocket.Conn
+	prod  *kafka.Producer
+}
+
+func NewDataReceiver() (*DataReceiver, error) {
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": "localhost"})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	defer p.Close()
+	// Start another goroutine to check if we have delivered the data
 	go func() {
 		for e := range p.Events() {
 			switch ev := e.(type) {
@@ -30,33 +46,30 @@ func main() {
 			}
 		}
 	}()
-	topic := kafkaTopic
-	for i := 0; i < 10; i++ {
-		p.Produce(&kafka.Message{
-			TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-			Value: []byte("test producing "),
-		}, nil)
-	}
-	return
-	recv := NewDataReceiver()
-	http.HandleFunc("/ws", recv.handleWS)
-	http.ListenAndServe(":30000", nil)
-}
-
-type DataReceiver struct {
-	msgch chan types.OBUData
-	conn  *websocket.Conn
-}
-
-func NewDataReceiver() *DataReceiver {
 	return &DataReceiver{
 		msgch: make(chan types.OBUData, 128),
+		prod:  p,
+	}, nil
+}
+
+func (dr *DataReceiver) produceData(data types.OBUData) error {
+	b, err := json.Marshal(data)
+	if err != nil {
+		return err
 	}
+	err = dr.prod.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &kafkaTopic,
+			Partition: kafka.PartitionAny,
+		},
+		Value: b,
+	}, nil)
+	return err
 }
 
 func (dr *DataReceiver) handleWS(w http.ResponseWriter, r *http.Request) {
-	u := websocket.Upgrader {
-		ReadBufferSize: 1028,
+	u := websocket.Upgrader{
+		ReadBufferSize:  1028,
 		WriteBufferSize: 1028,
 	}
 	conn, err := u.Upgrade(w, r, nil)
@@ -75,7 +88,8 @@ func (dr *DataReceiver) wsReceiveLoop() {
 			log.Println("read error: ", err)
 			continue
 		}
-		// TODO: Below code commented for now, because the channel gets full since no consumer is available yet
-		// dr.msgch <- data
+		if err := dr.produceData(data); err != nil {
+			fmt.Println("kafka produce error: ", err)
+		}
 	}
 }
