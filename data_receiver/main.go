@@ -9,8 +9,6 @@ import (
 	"github.com/mjmichael73/toll-calculator/types"
 )
 
-var kafkaTopic = "obudata"
-
 func main() {
 	recv, err := NewDataReceiver()
 	if err != nil {
@@ -30,8 +28,9 @@ func NewDataReceiver() (*DataReceiver, error) {
 	var (
 		p DataProducer
 		err error
+		kafkaTopic = "obudata"
 	)
-	p, err = NewKafkaProducer()
+	p, err = NewKafkaProducer(kafkaTopic)
 	if err != nil {
 		return nil, err
 	}
