@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/mjmichael73/toll-calculator/types"
 )
 
