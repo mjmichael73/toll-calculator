@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/mjmichael73/toll-calculator/types"
 	"github.com/sirupsen/logrus"
